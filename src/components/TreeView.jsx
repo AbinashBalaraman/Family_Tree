@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { calculateTreeLayout } from '../utils/treeLayout';
 import { 
   ZoomIn, 
@@ -8,10 +8,10 @@ import {
   Heart, 
   Plus, 
   Edit3, 
-  ChevronDown, 
-  ChevronUp,
+  Sparkles,
   MapPin,
-  Briefcase
+  Briefcase,
+  Crown
 } from 'lucide-react';
 
 export default function TreeView({ 
@@ -28,8 +28,42 @@ export default function TreeView({
 
   const containerRef = useRef(null);
 
-  // Compute layout
-  const { nodes, connectors, generations } = calculateTreeLayout(members);
+  // Compute Layout
+  const { nodes, connectors, generations } = useMemo(() => calculateTreeLayout(members), [members]);
+
+  // Ancestors and Descendants calculation for lineage highlighting
+  const { ancestorIds, descendantIds } = useMemo(() => {
+    if (!selectedMemberId) return { ancestorIds: new Set(), descendantIds: new Set() };
+
+    const memberMap = new Map(members.map(m => [m.id, m]));
+    const ancestors = new Set();
+    const descendants = new Set();
+
+    // Traverse Ancestors Upward
+    function getAncestors(id) {
+      const m = memberMap.get(id);
+      if (!m) return;
+      if (m.fatherId) { ancestors.add(m.fatherId); getAncestors(m.fatherId); }
+      if (m.motherId) { ancestors.add(m.motherId); getAncestors(m.motherId); }
+    }
+
+    // Traverse Descendants Downward
+    function getDescendants(id) {
+      const m = memberMap.get(id);
+      if (!m) return;
+      if (m.childrenIds) {
+        m.childrenIds.forEach(cId => {
+          descendants.add(cId);
+          getDescendants(cId);
+        });
+      }
+    }
+
+    getAncestors(selectedMemberId);
+    getDescendants(selectedMemberId);
+
+    return { ancestorIds: ancestors, descendantIds: descendants };
+  }, [selectedMemberId, members]);
 
   // Handle Canvas Drag / Pan
   const handleMouseDown = (e) => {
@@ -71,12 +105,12 @@ export default function TreeView({
       onWheel={handleWheel}
     >
       
-      {/* Zoom & Pan Controls floating panel */}
-      <div className="absolute bottom-6 right-6 z-30 glass-panel p-2 rounded-2xl flex items-center gap-2 shadow-xl">
+      {/* Floating Canvas Control Panel */}
+      <div className="absolute bottom-6 right-6 z-30 glass-panel p-2 rounded-2xl flex items-center gap-2 shadow-2xl">
         <button onClick={() => setZoom(z => Math.min(z * 1.2, 2.5))} className="btn-icon" title="Zoom In">
           <ZoomIn className="w-4 h-4" />
         </button>
-        <span className="text-xs font-semibold px-2 text-[var(--text-secondary)] min-w-[50px] text-center">
+        <span className="text-xs font-bold px-2 text-[var(--text-secondary)] min-w-[50px] text-center">
           {Math.round(zoom * 100)}%
         </span>
         <button onClick={() => setZoom(z => Math.max(z * 0.8, 0.4))} className="btn-icon" title="Zoom Out">
@@ -88,7 +122,7 @@ export default function TreeView({
         </button>
       </div>
 
-      {/* Main Transform Container */}
+      {/* Main Transform Canvas */}
       <div 
         className="absolute w-full h-full flex items-center justify-center transition-transform duration-75 ease-out"
         style={{
@@ -98,14 +132,14 @@ export default function TreeView({
       >
         <div className="relative">
           
-          {/* Generation Background Bands & Labels */}
+          {/* Generation Background Bands & Headers */}
           {generations.map((gen, idx) => (
             <div 
               key={`gen_band_${gen}`}
-              className="absolute left-[-2000px] right-[-2000px] border-b border-dashed border-[var(--border-color)] pointer-events-none"
-              style={{ top: `${idx * 300 - 40}px`, height: '280px' }}
+              className="absolute left-[-2500px] right-[-2500px] border-b border-dashed border-[var(--border-color)] pointer-events-none"
+              style={{ top: `${idx * 300 - 45}px`, height: '290px' }}
             >
-              <span className="absolute left-[2020px] top-2 text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)] bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded-md border border-[var(--border-color)]">
+              <span className="absolute left-[2520px] top-2 text-[10px] uppercase font-extrabold tracking-widest text-[var(--text-muted)] bg-[var(--bg-surface-elevated)] px-3 py-1 rounded-full border border-[var(--border-color)] shadow-sm">
                 Generation {gen}
               </span>
             </div>
@@ -114,16 +148,23 @@ export default function TreeView({
           {/* SVG Connectors Layer */}
           <svg className="absolute overflow-visible pointer-events-none left-0 top-0 w-full h-full z-10">
             {connectors.map(c => {
-              const isSelected = selectedMemberId && (c.parentId === selectedMemberId || c.childId === selectedMemberId);
+              const isAncestorFlow = ancestorIds.has(c.childId) && (ancestorIds.has(c.parentId) || c.parentId === selectedMemberId);
+              const isDescendantFlow = (descendantIds.has(c.childId) || c.childId === selectedMemberId) && descendantIds.has(c.childId);
+
+              let connectorClass = "connector-path";
+              if (isAncestorFlow) connectorClass += " ancestor-flow";
+              else if (isDescendantFlow) connectorClass += " descendant-flow";
+              else if (c.type === 'spouse') connectorClass += " spouse-connector";
+
               return (
                 <g key={c.id}>
                   <path 
                     d={c.path}
-                    className={`connector-path ${c.type === 'spouse' ? 'spouse-connector' : ''} ${isSelected ? 'active' : ''}`}
+                    className={connectorClass}
                   />
                   {c.type === 'spouse' && (
                     <foreignObject x={c.midX - 12} y={c.midY - 12} width={24} height={24}>
-                      <div className="w-6 h-6 rounded-full bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-rose-400">
+                      <div className="w-6 h-6 rounded-full bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-rose-400 shadow-md backdrop-blur-md">
                         <Heart className="w-3 h-3 fill-rose-500" />
                       </div>
                     </foreignObject>
@@ -137,7 +178,16 @@ export default function TreeView({
           <div className="relative z-20">
             {nodes.map(({ x, y, member }) => {
               const isSelected = member.id === selectedMemberId;
+              const isAncestor = ancestorIds.has(member.id);
+              const isDescendant = descendantIds.has(member.id);
               const isFemale = member.gender === 'female';
+              const isRoot = !member.fatherId && !member.motherId && member.generation === 1;
+
+              let cardClass = `tree-node-card absolute ${isFemale ? 'female' : 'male'}`;
+              if (isRoot) cardClass += " root-ancestor";
+              if (isSelected) cardClass += " selected gold-glow";
+              else if (isAncestor) cardClass += " highlighted-ancestor";
+              else if (isDescendant) cardClass += " highlighted-descendant";
 
               return (
                 <div
@@ -146,7 +196,7 @@ export default function TreeView({
                     e.stopPropagation();
                     onSelectMember(member.id);
                   }}
-                  className={`tree-node-card absolute ${isFemale ? 'female' : 'male'} ${isSelected ? 'selected glow-animation' : ''}`}
+                  className={cardClass}
                   style={{
                     transform: `translate(${x}px, ${y}px)`
                   }}
@@ -159,38 +209,50 @@ export default function TreeView({
                         <img 
                           src={member.avatar} 
                           alt={member.firstName}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-white/20 shadow-md"
+                          className="w-13 h-13 rounded-full object-cover border-2 border-white/20 shadow-lg"
                         />
                       ) : (
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-md ${isFemale ? 'bg-gradient-to-tr from-rose-500 to-pink-400' : 'bg-gradient-to-tr from-blue-600 to-cyan-500'}`}>
+                        <div className={`w-13 h-13 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg ${isFemale ? 'bg-gradient-to-tr from-rose-500 to-pink-400' : 'bg-gradient-to-tr from-blue-600 to-cyan-500'}`}>
                           {member.firstName[0]}
                         </div>
                       )}
-                      <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[var(--bg-surface)] ${isFemale ? 'bg-pink-500' : 'bg-blue-500'}`} />
+
+                      {/* Crown icon for Root Ancestors */}
+                      {isRoot && (
+                        <div className="absolute -top-2 -left-2 p-1 rounded-full bg-amber-500 text-white shadow-md">
+                          <Crown className="w-3 h-3" />
+                        </div>
+                      )}
+
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-surface)] ${isFemale ? 'bg-pink-500' : 'bg-blue-500'}`} />
                     </div>
 
                     {/* Member Details */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-sm text-[var(--text-primary)] truncate">
-                        {member.firstName} {member.lastName}
-                      </h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-[var(--text-primary)] truncate">
+                          {member.firstName} {member.lastName}
+                        </h3>
+                      </div>
+
                       {member.maidenName && (
                         <p className="text-[11px] text-[var(--text-muted)] italic truncate">
                           ({member.maidenName})
                         </p>
                       )}
-                      <p className="text-[11px] text-[var(--text-secondary)] font-medium mt-0.5">
+                      
+                      <p className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5">
                         {member.birthDate ? member.birthDate.substring(0, 4) : '????'} 
                         {' - '} 
-                        {member.deathDate ? member.deathDate.substring(0, 4) : (member.birthDate ? 'Present' : '')}
+                        {member.deathDate ? member.deathDate.substring(0, 4) : (member.birthDate ? 'Living' : '')}
                       </p>
                     </div>
 
                   </div>
 
-                  {/* Additional info badge */}
+                  {/* Info Badge */}
                   {(member.occupation || member.birthPlace) && (
-                    <div className="mt-2 pt-2 border-t border-[var(--border-color)] text-[10px] text-[var(--text-muted)] flex items-center gap-2 truncate">
+                    <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] text-[10px] text-[var(--text-muted)] flex items-center gap-2 truncate">
                       {member.occupation && (
                         <span className="flex items-center gap-1 truncate">
                           <Briefcase className="w-3 h-3 flex-shrink-0" />
@@ -200,14 +262,14 @@ export default function TreeView({
                     </div>
                   )}
 
-                  {/* Hover Quick Actions */}
-                  <div className="mt-2.5 flex items-center justify-between gap-1 pt-1 opacity-90 hover:opacity-100">
+                  {/* Hover Actions */}
+                  <div className="mt-3 flex items-center justify-between gap-1 pt-1 opacity-90 hover:opacity-100">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditMember(member);
                       }}
-                      className="text-[11px] font-semibold text-[var(--accent-primary)] hover:underline flex items-center gap-1"
+                      className="text-[11px] font-bold text-[var(--accent-primary)] hover:underline flex items-center gap-1"
                     >
                       <Edit3 className="w-3 h-3" />
                       Details
@@ -217,7 +279,7 @@ export default function TreeView({
                         e.stopPropagation();
                         onAddRelative(member);
                       }}
-                      className="text-[11px] font-semibold text-[var(--accent-emerald)] hover:underline flex items-center gap-1"
+                      className="text-[11px] font-bold text-[var(--accent-emerald)] hover:underline flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" />
                       Add Kin
