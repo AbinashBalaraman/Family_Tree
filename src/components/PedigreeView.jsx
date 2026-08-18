@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { User, ChevronRight, Sparkles } from 'lucide-react';
 
 export default function PedigreeView({ members, selectedMemberId, onSelectMember, onEditMember }) {
@@ -29,7 +29,7 @@ export default function PedigreeView({ members, selectedMemberId, onSelectMember
   const renderPedigreeNode = (nodeData, label, level = 0) => {
     if (!nodeData) {
       return (
-        <div className="w-52 p-3 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--bg-surface-elevated)]/30 text-center opacity-60">
+        <div className="w-60 p-4 rounded-2xl border border-dashed border-[var(--border-color)] bg-[var(--bg-surface-elevated)]/30 text-center opacity-60">
           <p className="text-xs text-[var(--text-muted)] font-medium">Unknown {label}</p>
         </div>
       );
@@ -40,36 +40,47 @@ export default function PedigreeView({ members, selectedMemberId, onSelectMember
     const isFocus = member.id === focusMember.id;
 
     return (
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6 my-2">
         <div 
           onClick={() => onSelectMember(member.id)}
-          className={`w-56 p-3 rounded-xl border-2 transition-all cursor-pointer shadow-md ${isFocus ? 'border-amber-400 bg-amber-500/10 shadow-amber-500/20' : (isFemale ? 'border-pink-500/40 bg-pink-500/5' : 'border-blue-500/40 bg-blue-500/5')} hover:scale-105`}
+          className={`w-64 p-4 rounded-2xl border-2 transition-all cursor-pointer shadow-lg ${
+            isFocus 
+              ? 'border-amber-400 bg-amber-500/10 shadow-amber-500/20 ring-2 ring-amber-400/40' 
+              : isFemale 
+                ? 'border-pink-500/40 bg-pink-500/10 hover:border-pink-400' 
+                : 'border-blue-500/40 bg-blue-500/10 hover:border-blue-400'
+          } hover:scale-105`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             {member.avatar ? (
-              <img src={member.avatar} alt={member.firstName} className="w-10 h-10 rounded-full object-cover border" />
+              <img 
+                src={member.avatar} 
+                alt={member.firstName} 
+                className="w-12 h-12 rounded-full object-cover border-2 border-white/20 shadow-md flex-shrink-0" 
+              />
             ) : (
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm ${isFemale ? 'bg-pink-500' : 'bg-blue-600'}`}>
-                {member.firstName[0]}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-base flex-shrink-0 ${isFemale ? 'bg-pink-500' : 'bg-blue-600'}`}>
+                {member.firstName ? member.firstName[0] : '?'}
               </div>
             )}
             <div className="flex-1 min-w-0">
               <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] block">
                 {label}
               </span>
-              <h4 className="font-bold text-xs text-[var(--text-primary)] truncate">
+              <h4 className="font-bold text-sm text-[var(--text-primary)] truncate">
                 {member.firstName} {member.lastName}
               </h4>
-              <p className="text-[10px] text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--text-secondary)] font-medium">
                 {member.birthDate ? member.birthDate.substring(0, 4) : '????'}
+                {member.deathDate ? ` - ${member.deathDate.substring(0, 4)}` : ''}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Child level branches */}
+        {/* Ancestor Level Branches */}
         {(nodeData.father || nodeData.mother || level < 2) && (
-          <div className="flex flex-col gap-4 relative pl-6 border-l-2 border-[var(--border-color)]">
+          <div className="flex flex-col gap-4 relative pl-8 border-l-2 border-[var(--border-color)]">
             {renderPedigreeNode(nodeData.father, 'Father', level + 1)}
             {renderPedigreeNode(nodeData.mother, 'Mother', level + 1)}
           </div>
@@ -98,7 +109,7 @@ export default function PedigreeView({ members, selectedMemberId, onSelectMember
           <select
             value={focusMember.id}
             onChange={(e) => onSelectMember(e.target.value)}
-            className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] px-3 py-1.5 rounded-xl font-medium focus:outline-none focus:border-[var(--accent-primary)]"
+            className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] px-4 py-2 rounded-xl font-medium focus:outline-none focus:border-[var(--accent-primary)] cursor-pointer"
           >
             {members.map(m => (
               <option key={m.id} value={m.id}>
@@ -110,8 +121,8 @@ export default function PedigreeView({ members, selectedMemberId, onSelectMember
       </div>
 
       {/* Pedigree Horizontal Flow */}
-      <div className="overflow-x-auto pb-8">
-        <div className="min-w-[900px] flex items-center">
+      <div className="overflow-x-auto pb-10">
+        <div className="min-w-[950px] flex items-center py-4">
           {renderPedigreeNode(pedigreeTree, 'Primary Root', 0)}
         </div>
       </div>

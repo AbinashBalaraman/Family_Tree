@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { calculateTreeLayout } from '../utils/treeLayout';
 import { 
   ZoomIn, 
@@ -21,8 +21,8 @@ export default function TreeView({
   onEditMember, 
   onAddRelative 
 }) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(0.9);
+  const [pan, setPan] = useState({ x: 0, y: 40 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
@@ -30,6 +30,14 @@ export default function TreeView({
 
   // Compute Layout
   const { nodes, connectors, generations } = useMemo(() => calculateTreeLayout(members), [members]);
+
+  // Center initial pan on mount
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPan({ x: rect.width / 2, y: 40 });
+    }
+  }, []);
 
   // Ancestors and Descendants calculation for lineage highlighting
   const { ancestorIds, descendantIds } = useMemo(() => {
@@ -87,18 +95,23 @@ export default function TreeView({
   const handleWheel = (e) => {
     e.preventDefault();
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.min(Math.max(prev * zoomFactor, 0.4), 2.5));
+    setZoom(prev => Math.min(Math.max(prev * zoomFactor, 0.35), 2.0));
   };
 
   const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPan({ x: rect.width / 2, y: 40 });
+    } else {
+      setPan({ x: 0, y: 40 });
+    }
+    setZoom(0.9);
   };
 
   return (
     <div 
       ref={containerRef}
-      className="relative w-full h-[calc(100vh-70px)] overflow-hidden bg-[var(--bg-main)] cursor-grab active:cursor-grabbing select-none"
+      className="relative w-full h-[calc(100vh-72px)] overflow-hidden bg-[var(--bg-main)] cursor-grab active:cursor-grabbing select-none"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -107,39 +120,39 @@ export default function TreeView({
       
       {/* Floating Canvas Control Panel */}
       <div className="absolute bottom-6 right-6 z-30 glass-panel p-2 rounded-2xl flex items-center gap-2 shadow-2xl">
-        <button onClick={() => setZoom(z => Math.min(z * 1.2, 2.5))} className="btn-icon" title="Zoom In">
+        <button onClick={() => setZoom(z => Math.min(z * 1.15, 2.0))} className="btn-icon" title="Zoom In">
           <ZoomIn className="w-4 h-4" />
         </button>
         <span className="text-xs font-bold px-2 text-[var(--text-secondary)] min-w-[50px] text-center">
           {Math.round(zoom * 100)}%
         </span>
-        <button onClick={() => setZoom(z => Math.max(z * 0.8, 0.4))} className="btn-icon" title="Zoom Out">
+        <button onClick={() => setZoom(z => Math.max(z * 0.85, 0.35))} className="btn-icon" title="Zoom Out">
           <ZoomOut className="w-4 h-4" />
         </button>
         <div className="w-px h-5 bg-[var(--border-color)]" />
-        <button onClick={resetView} className="btn-icon" title="Reset View">
+        <button onClick={resetView} className="btn-icon" title="Center View">
           <Maximize2 className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Main Transform Canvas */}
+      {/* Main Transform Container */}
       <div 
-        className="absolute w-full h-full flex items-center justify-center transition-transform duration-75 ease-out"
+        className="absolute top-0 left-0 w-full h-full pointer-events-none transition-transform duration-75 ease-out"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: 'center center'
+          transformOrigin: '0 0'
         }}
       >
-        <div className="relative">
+        <div className="relative pointer-events-auto">
           
           {/* Generation Background Bands & Headers */}
           {generations.map((gen, idx) => (
             <div 
               key={`gen_band_${gen}`}
-              className="absolute left-[-2500px] right-[-2500px] border-b border-dashed border-[var(--border-color)] pointer-events-none"
-              style={{ top: `${idx * 300 - 45}px`, height: '290px' }}
+              className="absolute left-[-3000px] right-[-3000px] border-b border-dashed border-[var(--border-color)] pointer-events-none"
+              style={{ top: `${60 + idx * 270 - 20}px`, height: '260px' }}
             >
-              <span className="absolute left-[2520px] top-2 text-[10px] uppercase font-extrabold tracking-widest text-[var(--text-muted)] bg-[var(--bg-surface-elevated)] px-3 py-1 rounded-full border border-[var(--border-color)] shadow-sm">
+              <span className="absolute left-[3040px] top-2 text-[10px] uppercase font-extrabold tracking-widest text-[var(--text-muted)] bg-[var(--bg-surface-elevated)] px-3 py-1 rounded-full border border-[var(--border-color)] shadow-sm">
                 Generation {gen}
               </span>
             </div>
@@ -181,9 +194,9 @@ export default function TreeView({
               const isAncestor = ancestorIds.has(member.id);
               const isDescendant = descendantIds.has(member.id);
               const isFemale = member.gender === 'female';
-              const isRoot = !member.fatherId && !member.motherId && member.generation === 1;
+              const isRoot = !member.fatherId && !member.motherId && (member.generation === 1 || !member.generation);
 
-              let cardClass = `tree-node-card absolute ${isFemale ? 'female' : 'male'}`;
+              let cardClass = `tree-node-card ${isFemale ? 'female' : 'male'}`;
               if (isRoot) cardClass += " root-ancestor";
               if (isSelected) cardClass += " selected gold-glow";
               else if (isAncestor) cardClass += " highlighted-ancestor";
@@ -198,22 +211,23 @@ export default function TreeView({
                   }}
                   className={cardClass}
                   style={{
-                    transform: `translate(${x}px, ${y}px)`
+                    left: `${x}px`,
+                    top: `${y}px`
                   }}
                 >
                   <div className="flex items-start gap-3">
                     
-                    {/* Avatar */}
+                    {/* Avatar Thumbnail */}
                     <div className="relative flex-shrink-0">
                       {member.avatar ? (
                         <img 
                           src={member.avatar} 
                           alt={member.firstName}
-                          className="w-13 h-13 rounded-full object-cover border-2 border-white/20 shadow-lg"
+                          className="node-avatar-img"
                         />
                       ) : (
-                        <div className={`w-13 h-13 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg ${isFemale ? 'bg-gradient-to-tr from-rose-500 to-pink-400' : 'bg-gradient-to-tr from-blue-600 to-cyan-500'}`}>
-                          {member.firstName[0]}
+                        <div className={`node-avatar-fallback ${isFemale ? 'bg-gradient-to-tr from-rose-500 to-pink-400' : 'bg-gradient-to-tr from-blue-600 to-cyan-500'}`}>
+                          {member.firstName ? member.firstName[0] : '?'}
                         </div>
                       )}
 
@@ -250,7 +264,7 @@ export default function TreeView({
 
                   </div>
 
-                  {/* Info Badge */}
+                  {/* Occupation / Place Badge */}
                   {(member.occupation || member.birthPlace) && (
                     <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] text-[10px] text-[var(--text-muted)] flex items-center gap-2 truncate">
                       {member.occupation && (
@@ -263,13 +277,13 @@ export default function TreeView({
                   )}
 
                   {/* Hover Actions */}
-                  <div className="mt-3 flex items-center justify-between gap-1 pt-1 opacity-90 hover:opacity-100">
+                  <div className="mt-2.5 flex items-center justify-between gap-1 pt-1 opacity-90 hover:opacity-100">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditMember(member);
                       }}
-                      className="text-[11px] font-bold text-[var(--accent-primary)] hover:underline flex items-center gap-1"
+                      className="text-[11px] font-bold text-[var(--accent-primary)] hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Edit3 className="w-3 h-3" />
                       Details
@@ -279,7 +293,7 @@ export default function TreeView({
                         e.stopPropagation();
                         onAddRelative(member);
                       }}
-                      className="text-[11px] font-bold text-[var(--accent-emerald)] hover:underline flex items-center gap-1"
+                      className="text-[11px] font-bold text-[var(--accent-emerald)] hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
                       Add Kin

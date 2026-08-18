@@ -1,14 +1,14 @@
 /**
- * Tree Layout Engine
- * Calculates generation ranks, node coordinates (x, y), and SVG connector curves
+ * Robust Tree Layout Engine
+ * Computes balanced hierarchy coordinates (x, y) and smooth SVG connector paths
  */
 
 export function calculateTreeLayout(members) {
-  if (!members || members.length === 0) return { nodes: [], connectors: [] };
+  if (!members || members.length === 0) return { nodes: [], connectors: [], generations: [] };
 
   const memberMap = new Map(members.map(m => [m.id, { ...m }]));
   
-  // Assign generations if missing
+  // Assign generations if missing or calculate recursively
   const generations = new Map();
 
   function getGen(id, visited = new Set()) {
@@ -39,17 +39,17 @@ export function calculateTreeLayout(members) {
   });
 
   const sortedGens = Array.from(genGroups.keys()).sort((a, b) => a - b);
-  const NODE_WIDTH = 220;
-  const NODE_HEIGHT = 140;
-  const H_SPACING = 70;
-  const V_SPACING = 160;
+  const NODE_WIDTH = 240;
+  const NODE_HEIGHT = 130;
+  const H_SPACING = 60;
+  const V_SPACING = 140;
 
   const nodePositions = new Map();
 
   sortedGens.forEach((gen, gIdx) => {
     const group = genGroups.get(gen);
     
-    // Sort group to place spouses next to each other
+    // Sort group to place spouses adjacent
     const orderedGroup = [];
     const added = new Set();
 
@@ -71,7 +71,7 @@ export function calculateTreeLayout(members) {
 
     const totalWidth = orderedGroup.length * NODE_WIDTH + (orderedGroup.length - 1) * H_SPACING;
     const startX = -totalWidth / 2;
-    const y = gIdx * (NODE_HEIGHT + V_SPACING);
+    const y = 60 + gIdx * (NODE_HEIGHT + V_SPACING);
 
     orderedGroup.forEach((m, idx) => {
       const x = startX + idx * (NODE_WIDTH + H_SPACING);
@@ -95,9 +95,9 @@ export function calculateTreeLayout(members) {
         const pos2 = nodePositions.get(spId);
 
         if (pos1 && pos2) {
-          const x1 = pos1.x + NODE_WIDTH / 2;
+          const x1 = Math.min(pos1.x, pos2.x) + NODE_WIDTH;
           const y1 = pos1.y + NODE_HEIGHT / 2;
-          const x2 = pos2.x + NODE_WIDTH / 2;
+          const x2 = Math.max(pos1.x, pos2.x);
           const y2 = pos2.y + NODE_HEIGHT / 2;
 
           connectors.push({
@@ -105,7 +105,9 @@ export function calculateTreeLayout(members) {
             type: "spouse",
             path: `M ${x1} ${y1} L ${x2} ${y2}`,
             midX: (x1 + x2) / 2,
-            midY: (y1 + y2) / 2
+            midY: (y1 + y2) / 2,
+            parentId: m.id,
+            childId: spId
           });
         }
       });
@@ -125,7 +127,7 @@ export function calculateTreeLayout(members) {
 
       if (fPos && mPos) {
         parentX = (fPos.x + mPos.x + NODE_WIDTH) / 2;
-        parentY = (fPos.y + mPos.y) / 2 + NODE_HEIGHT / 2;
+        parentY = (fPos.y + mPos.y) / 2 + NODE_HEIGHT;
       } else if (fPos) {
         parentX = fPos.x + NODE_WIDTH / 2;
         parentY = fPos.y + NODE_HEIGHT;
