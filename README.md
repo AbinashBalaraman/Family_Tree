@@ -1,5 +1,10 @@
 # 🌐 Family Atlas — Interactive Radial Pedigree & Generational Dynasty Graph
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-family--atlas.netlify.app-00C853?style=for-the-badge&logo=netlify&logoColor=white)](https://tiny-taiyaki-398a43.netlify.app/)
+
+**[🌐 Explore Live Deployment →](https://tiny-taiyaki-398a43.netlify.app/)**
+
+
 [![React 19](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
